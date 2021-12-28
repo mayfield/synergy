@@ -21,7 +21,7 @@ set(VERSION_REV 5)
 set(VERSION_STAGE stable)
 set(VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REV}")
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.0)
 
 # CMake complains if we don't have this.
 if (COMMAND cmake_policy)
@@ -169,17 +169,17 @@ if (UNIX)
 		message(STATUS "OSX_TARGET_MAJOR=${OSX_TARGET_MAJOR}")
 		message(STATUS "OSX_TARGET_MINOR=${OSX_TARGET_MINOR}")
 
-		if (NOT (OSX_TARGET_MAJOR EQUAL 10))
+		if (NOT (OSX_TARGET_MAJOR GREATER 11))
 			message(FATAL_ERROR "Mac OS X target must be 10.x")
 		endif ()
 
 		if (OSX_TARGET_MINOR LESS 6)
 			# <= 10.5: 32-bit Intel and PowerPC
-			set(CMAKE_OSX_ARCHITECTURES "ppc;i386"
+			set(CMAKE_OSX_ARCHITECTURES "arm64"
 				CACHE STRING "" FORCE)
 		else()
 			# >= 10.6: Intel only
-			set(CMAKE_OSX_ARCHITECTURES "i386"
+			set(CMAKE_OSX_ARCHITECTURES "arm64"
 				CACHE STRING "" FORCE)
 		endif()
 		

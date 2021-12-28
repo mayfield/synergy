@@ -483,6 +483,7 @@ class InternalCommands:
 			(major, minor) = self.getMacVersion()
 			if major == 10 and minor <= 4:
 				# 10.4: universal (intel and power pc)
+				raise Exception("FUCK")
 				qmake_cmd_string += ' CONFIG+="ppc i386"'
 			
 			libs = (
@@ -554,7 +555,7 @@ class InternalCommands:
 			return sdkPath
 
 		# return os.popen('xcodebuild -version -sdk macosx' + self.macSdk + ' Path').read().strip()
-		return "/Developer/SDKs/" + sdkDirName + ".sdk"
+		return "/Library/Developer/CommandLineTools/Developer/SDKs/" + sdkDirName + ".sdk"
 	
 	# http://tinyurl.com/cs2rxxb
 	def fixCmakeEclipseBug(self):
