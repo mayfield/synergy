@@ -1,3 +1,3 @@
 #! /bin/bash
 
-python hm.py "$@"
+python3 hm.py "$@"

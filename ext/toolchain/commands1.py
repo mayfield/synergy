@@ -541,7 +541,7 @@ class InternalCommands:
 
 		# Ideally we'll use xcrun (which is influenced by $DEVELOPER_DIR), then try a couple
 		# fallbacks to known paths if xcrun is not available
-		status, sdkPath = commands.getstatusoutput("xcrun --show-sdk-path --sdk " + sdkName)
+		status, sdkPath = subprocess.getstatusoutput("xcrun --show-sdk-path --sdk " + sdkName)
 		if status == 0 and sdkPath:
 			return sdkPath
 
@@ -1561,7 +1561,7 @@ class InternalCommands:
 		generator = self.get_generator_from_prompt()
 
 		config = self.getConfig()
-		config.set('hm', 'setup_version', self.setup_version)
+		config.set('hm', 'setup_version', str(self.setup_version))
 		
 		# store the generator so we don't need to ask again
 		config.set('cmake', 'generator', generator)
@@ -1593,7 +1593,7 @@ class InternalCommands:
 	def write_config(self, config, target=''):
 		if not os.path.isdir(self.configDir):
 			os.mkdir(self.configDir)
-		configfile = open(self.configFilename, 'wb')
+		configfile = open(self.configFilename, 'w')
 		config.write(configfile)
 
 	def getGeneratorFromConfig(self):
