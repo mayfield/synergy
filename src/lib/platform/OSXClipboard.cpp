@@ -122,7 +122,7 @@ OSXClipboard::add(EFormat format, const String & data)
 
             PasteboardPutItemFlavor(
                 m_pboard,
-                nullptr,
+                (PasteboardItemID) 1,
                 flavorType,
                 dataRef,
                 kPasteboardFlavorNoFlags);

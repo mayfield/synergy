@@ -81,7 +81,7 @@
 #		define SELECT_TYPE_ARG5 (struct timeval *)
 #		define SIZEOF_CHAR 1
 #		define SIZEOF_INT 4
-#		define SIZEOF_LONG 4
+#		define SIZEOF_LONG 8
 #		define SIZEOF_SHORT 2
 #		define STDC_HEADERS 1
 #		define TIME_WITH_SYS_TIME 1
@@ -135,11 +135,6 @@
 
 // define NULL
 #include <stddef.h>
-
-// if not c++0x, future proof code by allowing use of nullptr
-#ifndef nullptr
-#	define nullptr NULL
-#endif
 
 // make assert available since we use it a lot
 #include <assert.h>
