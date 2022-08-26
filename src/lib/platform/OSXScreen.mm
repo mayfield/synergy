@@ -41,6 +41,8 @@
 #include "base/TMethodJob.h"
 
 #include <math.h>
+#include <time.h>
+#include <sys/param.h>
 #include <mach-o/dyld.h>
 #include <AvailabilityMacros.h>
 #include <IOKit/hidsystem/event_status_driver.h>
@@ -483,13 +485,16 @@ OSXScreen::postMouseEvent(CGPoint& pos) const
 	CGEventType type = kCGEventMouseMoved;
 
 	SInt8 button = m_buttonState.getFirstButtonDown();
+	CGEventRef event;
 	if (button != -1) {
 		MouseButtonEventMapType thisButtonType = MouseButtonEventMap[button];
 		type = thisButtonType[kMouseButtonDragged];
-	}
+        event = CGEventCreateMouseEvent(NULL, type, pos, (CGMouseButton) button);
+	} else {
+        // mousebutton is ignored for mouse moved type, but -1 is not valid either
+        event = CGEventCreateMouseEvent(NULL, type, pos, (CGMouseButton) 0);
+    }
 
-	CGEventRef event = CGEventCreateMouseEvent(NULL, type, pos, button);
-    
     // Dragging events also need the click state
     CGEventSetIntegerValueField(event, kCGMouseEventClickState, m_clickState);
     
@@ -506,7 +511,7 @@ void
 OSXScreen::fakeMouseButton(ButtonID id, bool press)
 {
 	// Buttons are indexed from one, but the button down array is indexed from zero
-	UInt32 index = mapSynergyButtonToMac(id) - kButtonLeft;
+	CGMouseButton index = (CGMouseButton) (mapSynergyButtonToMac(id) - kButtonLeft);
 	if (index >= NumButtonIDs) {
 		return;
 	}
@@ -671,9 +676,9 @@ OSXScreen::fakeMouseWheel(SInt32 xDelta, SInt32 yDelta) const
 		// create a scroll event, post it and release it.  not sure if kCGScrollEventUnitLine
 		// is the right choice here over kCGScrollEventUnitPixel
 		CGEventRef scrollEvent = CGEventCreateScrollWheelEvent(
-			NULL, kCGScrollEventUnitLine, 2,
-			mapScrollWheelFromSynergy(yDelta),
-			-mapScrollWheelFromSynergy(xDelta));
+			NULL, kCGScrollEventUnitPixel, 2,
+			mapScrollWheelFromSynergy(yDelta, true),
+			-mapScrollWheelFromSynergy(xDelta, false));
 		
         // Fix for sticky keys
         CGEventFlags modifiers = m_keyState->getModifierStateAsOSXFlags();
@@ -750,10 +755,10 @@ OSXScreen::enable()
 	if (m_isPrimary) {
 		// FIXME -- start watching jump zones
 		
-		// kCGEventTapOptionDefault = 0x00000000 (Missing in 10.4, so specified literally)
-		m_eventTapPort = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, 0,
-										kCGEventMaskForAllEvents, 
-										handleCGInputEvent, 
+		m_eventTapPort = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap,
+										kCGEventTapOptionDefault,
+										kCGEventMaskForAllEvents,
+										handleCGInputEvent,
 										this);
 	}
 	else {
@@ -769,9 +774,10 @@ OSXScreen::enable()
                 // there may be a better way to do this, but we register an event handler even if we're
                 // not on the primary display (acting as a client). This way, if a local event comes in
                 // (either keyboard or mouse), we can make sure to show the cursor if we've hidden it. 
-		m_eventTapPort = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, 0,
-										kCGEventMaskForAllEvents, 
-										handleCGInputEventSecondary, 
+		m_eventTapPort = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap,
+										kCGEventTapOptionDefault,
+										kCGEventMaskForAllEvents,
+										handleCGInputEventSecondary,
 										this);
 	}
 
@@ -1425,12 +1431,40 @@ OSXScreen::mapScrollWheelToSynergy(SInt32 x) const
 	return static_cast<SInt32>(120.0 * d);
 }
 
+static UInt64 monotonic() {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+        fprintf(stderr, "clock_gettime error\n");
+        exit(1);
+        return -1;
+    } else {
+        return ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+    }
+}
+
 SInt32
-OSXScreen::mapScrollWheelFromSynergy(SInt32 x) const
+OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
 {
-	// use server's acceleration with a little boost since other platforms
-	// take one wheel step as a larger step than the mac does.
-	return static_cast<SInt32>(3.0 * x / 120.0);
+    static float accel = 1;
+    static int last_dir = 0;
+    static UInt64 last_ts = monotonic();
+    int dir = x > 0 ? 1 : x < 0 ? -1 : 0;
+    UInt64 ts = monotonic();
+    UInt64 elapsed = ts - last_ts;
+
+    if (!dir) {
+        return 0;
+    }
+    if (dir != last_dir || elapsed > 300) {
+        accel = 1.0;
+    } else {
+        accel += 100.0 / MAX(elapsed, 1);
+    }
+    last_dir = dir;
+    last_ts = ts;
+    double accel_factor = MIN(400, accel);
+    //printf("input scroll value: %d %lld %f %f\n", x, elapsed, accel_factor, accel);
+    return static_cast<SInt32>(accel_factor * x / 120.0);
 }
 
 double
@@ -2020,7 +2054,7 @@ SInt8
 OSXScreen::MouseButtonState::getFirstButtonDown() const 
 {
 	if (m_buttons.any()) {
-		for (unsigned short button = 0; button < m_buttons.size(); button++) {
+		for (SInt8 button = 0; button < m_buttons.size(); button++) {
 			if (m_buttons.test(button)) {
 				return button;
 			}
