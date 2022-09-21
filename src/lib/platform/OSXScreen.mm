@@ -1456,13 +1456,13 @@ OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
         return 0;
     }
     if (dir != last_dir || elapsed > 300) {
-        accel = 1.0;
+        accel = 2.0;
     } else {
-        accel += 100.0 / MAX(elapsed, 1);
+        accel += 80.0 / MAX(elapsed, 1);
     }
     last_dir = dir;
     last_ts = ts;
-    double accel_factor = MIN(400, accel);
+    double accel_factor = MIN(300, accel);
     //printf("input scroll value: %d %lld %f %f\n", x, elapsed, accel_factor, accel);
     return static_cast<SInt32>(accel_factor * x / 120.0);
 }
