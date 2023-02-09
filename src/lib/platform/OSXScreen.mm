@@ -1444,7 +1444,7 @@ OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
     static float accel = 1;
     static int last_dir = 0;
     static UInt64 last_ts = monotonic();
-    int dir = x > 0 ? 1 : x < 0 ? -1 : 0;
+    int dir = (x > 0 ? 1 : x < 0 ? -1 : 0) * (is_y ? 1 : 2);
     UInt64 ts = monotonic();
     UInt64 elapsed = ts - last_ts;
 
@@ -1452,15 +1452,16 @@ OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
         return 0;
     }
     if (dir != last_dir || elapsed > 300) {
-        accel = 2.0;
+        accel = 1;
     } else {
-        accel += 80.0 / MAX(elapsed, 1);
+        accel = MIN(5, accel + MIN(2, 2.0 / MAX(elapsed, 1)));
     }
     last_dir = dir;
     last_ts = ts;
-    double accel_factor = MIN(300, accel);
-    //printf("input scroll value: %d %lld %f %f\n", x, elapsed, accel_factor, accel);
-    return static_cast<SInt32>(accel_factor * x / 120.0);
+    double pixels = accel * x / 5.0;
+    //printf("Input scroll: x:%d ms:%lld accel:%f pixels:%f\n",
+    //    x, elapsed, accel, pixels);
+    return static_cast<SInt32>(pixels);
 }
 
 double
