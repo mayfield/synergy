@@ -66,7 +66,7 @@ public:
 	/*!
 	Still required in a few places for translation calls.
 	*/
-	KeyModifierMask		mapModifiersToCarbon(UInt32 mask) const;
+	KeyModifierMask		mapModifiersToCarbon(UInt64 mask) const;
 	
 	//! Map key event to keys
 	/*!

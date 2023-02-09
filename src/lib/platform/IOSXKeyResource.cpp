@@ -138,7 +138,7 @@ IOSXKeyResource::getKeyID(UInt8 c)
 		CFStringNormalize(mcfString, kCFStringNormalizationFormC);
 
 		// check result
-		int unicodeLength = CFStringGetLength(mcfString);
+		long unicodeLength = CFStringGetLength(mcfString);
 		if (unicodeLength == 0) {
 			CFRelease(mcfString);
 			return kKeyNone;

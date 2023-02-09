@@ -120,8 +120,9 @@ ClientApp::help()
 #endif
 
 	char buffer[2000];
-	sprintf(
+	snprintf(
 		buffer,
+        2000,
 		"Usage: %s"
 		" [--yscroll <delta>]"
 		WINAPI_ARG

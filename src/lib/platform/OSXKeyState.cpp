@@ -192,7 +192,7 @@ OSXKeyState::mapModifiersFromOSX(UInt32 mask) const
 }
 
 KeyModifierMask
-OSXKeyState::mapModifiersToCarbon(UInt32 mask) const
+OSXKeyState::mapModifiersToCarbon(UInt64 mask) const
 {
 	KeyModifierMask outMask = 0;
 	if ((mask & kCGEventFlagMaskShift) != 0) {
@@ -231,7 +231,7 @@ OSXKeyState::mapKeyFromEvent(KeyIDs& ids,
 	}
 
 	// get virtual key
-	UInt32 vkCode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+	UInt32 vkCode = (UInt32) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 
 	// handle up events
 	UInt32 eventKind = CGEventGetType(event);
@@ -261,8 +261,7 @@ OSXKeyState::mapKeyFromEvent(KeyIDs& ids,
 	// get the event modifiers and remove the command and control
 	// keys.  note if we used them though.
 	// UCKeyTranslate expects old-style Carbon modifiers, so convert.
-	UInt32 modifiers;
-	modifiers = mapModifiersToCarbon(CGEventGetFlags(event));
+	UInt64 modifiers = mapModifiersToCarbon(CGEventGetFlags(event));
 	static const UInt32 s_commandModifiers =
 		cmdKey | controlKey | rightControlKey;
 	bool isCommand = ((modifiers & s_commandModifiers) != 0);
