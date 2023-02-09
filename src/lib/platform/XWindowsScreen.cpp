@@ -1565,7 +1565,6 @@ XWindowsScreen::onHotKey(XKeyEvent& xkey, bool isRepeat)
 void
 XWindowsScreen::onMousePress(const XButtonEvent& xbutton)
 {
-	LOG((CLOG_DEBUG1 "event: ButtonPress button=%d", xbutton.button));
 	ButtonID button      = mapButtonFromX(&xbutton);
 	KeyModifierMask mask = m_keyState->mapModifiersFromX(xbutton.state);
 	if (button != kButtonNone) {
@@ -1573,24 +1572,28 @@ XWindowsScreen::onMousePress(const XButtonEvent& xbutton)
 	}
 }
 
+static int c = 0;
 void
 XWindowsScreen::onMouseRelease(const XButtonEvent& xbutton)
 {
-	LOG((CLOG_DEBUG1 "event: ButtonRelease button=%d", xbutton.button));
-	ButtonID button      = mapButtonFromX(&xbutton);
+	ButtonID button = mapButtonFromX(&xbutton);
 	KeyModifierMask mask = m_keyState->mapModifiersFromX(xbutton.state);
 	if (button != kButtonNone) {
+        // Normal mouse button
 		sendEvent(m_events->forIPrimaryScreen().buttonUp(), ButtonInfo::alloc(button, mask));
-	}
-	else if (xbutton.button == 4) {
+	} else if (xbutton.button == 4) {
 		// wheel forward (away from user)
 		sendEvent(m_events->forIPrimaryScreen().wheel(), WheelInfo::alloc(0, 120));
-	}
-	else if (xbutton.button == 5) {
+	} else if (xbutton.button == 5) {
 		// wheel backward (toward user)
 		sendEvent(m_events->forIPrimaryScreen().wheel(), WheelInfo::alloc(0, -120));
+	} else if (xbutton.button == 6) {
+		// wheel left
+		sendEvent(m_events->forIPrimaryScreen().wheel(), WheelInfo::alloc(-120, 0));
+	} else if (xbutton.button == 7) {
+		// wheel right
+		sendEvent(m_events->forIPrimaryScreen().wheel(), WheelInfo::alloc(120, 0));
 	}
-	// XXX -- support x-axis scrolling
 }
 
 void
@@ -1879,28 +1882,22 @@ XWindowsScreen::mapKeyFromX(XKeyEvent* event) const
 ButtonID
 XWindowsScreen::mapButtonFromX(const XButtonEvent* event) const
 {
-	unsigned int button = event->button;
-
-	// first three buttons map to 1, 2, 3 (kButtonLeft, Middle, Right)
-	if (button >= 1 && button <= 3) {
-		return static_cast<ButtonID>(button);
-	}
-
-	// buttons 4 and 5 are ignored here.  they're used for the wheel.
-	// buttons 6, 7, etc and up map to 4, 5, etc.
-	else if (button >= 6) {
-		return static_cast<ButtonID>(button - 2);
-	}
-
-	// unknown button
-	else {
-		return kButtonNone;
-	}
+    // Scroll events are "buttons" 4, 5, 6, 7 and must be removed from the
+    // button enum to match platform conventions that expect back/fwd
+    // buttons to be 4 and 5 respectively.
+    unsigned int btn = event->button;
+    if (btn >= 4 && btn <= 7) {
+        return kButtonNone; // scroll event
+    } else if (btn > 7) {
+        btn -= 4; // high button (e.g. back / fwd)
+    }
+    return static_cast<ButtonID>(btn);
 }
 
 unsigned int
 XWindowsScreen::mapButtonToX(ButtonID id) const
 {
+    // XXX Unported cause I don't use this but it's probably broken
 	// map button -1 to button 4 (+wheel)
 	if (id == static_cast<ButtonID>(-1)) {
 		id = 4;
