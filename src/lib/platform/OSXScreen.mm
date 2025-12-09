@@ -347,7 +347,7 @@ OSXScreen::registerHotKey(KeyID key, KeyModifierMask mask)
 		m_oldHotKeyIDs.pop_back();
 	}
 	else {
-		id = m_hotKeys.size() + 1;
+		id = (UInt32) m_hotKeys.size() + 1;
 	}
 
 	// if this hot key has modifiers only then we'll handle it specially
@@ -999,81 +999,77 @@ OSXScreen::handleSystemEvent(const Event& event, void*)
 	UInt32 eventClass = GetEventClass(*carbonEvent);
 
 	switch (eventClass) {
-	case kEventClassMouse:
-		switch (GetEventKind(*carbonEvent)) {
-		case kSynergyEventMouseScroll:
-		{
-			OSStatus r;
-			long xScroll;
-			long yScroll;
+        case kEventClassMouse:
+            switch (GetEventKind(*carbonEvent)) {
+                case kSynergyEventMouseScroll: {
+                    OSStatus r;
+                    SInt32 xScroll;
+                    SInt32 yScroll;
+                    // get scroll amount
+                    r = GetEventParameter(*carbonEvent,
+                            kSynergyMouseScrollAxisX,
+                            typeSInt32,
+                            NULL,
+                            sizeof(xScroll),
+                            NULL,
+                            &xScroll);
+                    if (r != noErr) {
+                        xScroll = 0;
+                    }
+                    r = GetEventParameter(*carbonEvent,
+                            kSynergyMouseScrollAxisY,
+                            typeSInt32,
+                            NULL,
+                            sizeof(yScroll),
+                            NULL,
+                            &yScroll);
+                    if (r != noErr) {
+                        yScroll = 0;
+                    }
 
-			// get scroll amount
-			r = GetEventParameter(*carbonEvent,
-					kSynergyMouseScrollAxisX,
-					typeSInt32,
-					NULL,
-					sizeof(xScroll),
-					NULL,
-					&xScroll);
-			if (r != noErr) {
-				xScroll = 0;
-			}
-			r = GetEventParameter(*carbonEvent,
-					kSynergyMouseScrollAxisY,
-					typeSInt32,
-					NULL,
-					sizeof(yScroll),
-					NULL,
-					&yScroll);
-			if (r != noErr) {
-				yScroll = 0;
-			}
+                    if (xScroll != 0 || yScroll != 0) {
+                        onMouseWheel(-mapScrollWheelToSynergy(xScroll), mapScrollWheelToSynergy(yScroll));
+                    }
+                }
+            }
+            break;
 
-			if (xScroll != 0 || yScroll != 0) {
-				onMouseWheel(-mapScrollWheelToSynergy(xScroll),
-								mapScrollWheelToSynergy(yScroll));
-			}
-		}
-		}
-		break;
+        case kEventClassKeyboard: 
+            switch (GetEventKind(*carbonEvent)) {
+                case kEventHotKeyPressed:
+                case kEventHotKeyReleased:
+                    onHotKey(*carbonEvent);
+                    break;
+            }
+            break;
+                
+        case kEventClassWindow:
+            // 2nd param was formerly GetWindowEventTarget(m_userInputWindow) which is 32-bit only,
+            // however as m_userInputWindow is never initialized to anything we can take advantage of
+            // the fact that GetWindowEventTarget(NULL) == NULL
+            SendEventToEventTarget(*carbonEvent, NULL);
+            switch (GetEventKind(*carbonEvent)) {
+                case kEventWindowActivated:
+                    LOG((CLOG_DEBUG1 "window activated"));
+                    break;
 
-	case kEventClassKeyboard: 
-			switch (GetEventKind(*carbonEvent)) {
-				case kEventHotKeyPressed:
-				case kEventHotKeyReleased:
-					onHotKey(*carbonEvent);
-					break;
-			}
-			
-			break;
-			
-	case kEventClassWindow:
-		// 2nd param was formerly GetWindowEventTarget(m_userInputWindow) which is 32-bit only,
-		// however as m_userInputWindow is never initialized to anything we can take advantage of
-		// the fact that GetWindowEventTarget(NULL) == NULL
-		SendEventToEventTarget(*carbonEvent, NULL);
-		switch (GetEventKind(*carbonEvent)) {
-		case kEventWindowActivated:
-			LOG((CLOG_DEBUG1 "window activated"));
-			break;
+                case kEventWindowDeactivated:
+                    LOG((CLOG_DEBUG1 "window deactivated"));
+                    break;
 
-		case kEventWindowDeactivated:
-			LOG((CLOG_DEBUG1 "window deactivated"));
-			break;
+                case kEventWindowFocusAcquired:
+                    LOG((CLOG_DEBUG1 "focus acquired"));
+                    break;
 
-		case kEventWindowFocusAcquired:
-			LOG((CLOG_DEBUG1 "focus acquired"));
-			break;
+                case kEventWindowFocusRelinquish:
+                    LOG((CLOG_DEBUG1 "focus released"));
+                    break;
+            }
+            break;
 
-		case kEventWindowFocusRelinquish:
-			LOG((CLOG_DEBUG1 "focus released"));
-			break;
-		}
-		break;
-
-	default:
-		SendEventToEventTarget(*carbonEvent, GetEventDispatcherTarget());
-		break;
+        default:
+            SendEventToEventTarget(*carbonEvent, GetEventDispatcherTarget());
+            break;
 	}
 }
 
@@ -1226,7 +1222,7 @@ OSXScreen::onKey(CGEventRef event)
 	CGEventType eventKind = CGEventGetType(event);
 
 	// get the key and active modifiers
-	UInt32 virtualKey = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+	UInt32 virtualKey = (UInt32) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 	CGEventFlags macMask = CGEventGetFlags(event);
 	LOG((CLOG_DEBUG1 "event: Key event kind: %d, keycode=%d", eventKind, virtualKey));
 
@@ -1234,7 +1230,7 @@ OSXScreen::onKey(CGEventRef event)
 	if (eventKind == kCGEventFlagsChanged) {
 		// get old and new modifier state
 		KeyModifierMask oldMask = getActiveModifiers();
-		KeyModifierMask newMask = m_keyState->mapModifiersFromOSX(macMask);
+		KeyModifierMask newMask = m_keyState->mapModifiersFromOSX((UInt32) macMask);
 		m_keyState->handleModifierKeys(getEventTarget(), oldMask, newMask);
 
 		// if the current set of modifiers exactly matches a modifiers-only
@@ -1448,7 +1444,7 @@ OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
     static float accel = 1;
     static int last_dir = 0;
     static UInt64 last_ts = monotonic();
-    int dir = x > 0 ? 1 : x < 0 ? -1 : 0;
+    int dir = (x > 0 ? 1 : x < 0 ? -1 : 0) * (is_y ? 1 : 2);
     UInt64 ts = monotonic();
     UInt64 elapsed = ts - last_ts;
 
@@ -1456,15 +1452,16 @@ OSXScreen::mapScrollWheelFromSynergy(SInt32 x, bool is_y) const
         return 0;
     }
     if (dir != last_dir || elapsed > 300) {
-        accel = 2.0;
+        accel = 1;
     } else {
-        accel += 80.0 / MAX(elapsed, 1);
+        accel = MIN(5, accel + MIN(2, 2.0 / MAX(elapsed, 1)));
     }
     last_dir = dir;
     last_ts = ts;
-    double accel_factor = MIN(300, accel);
-    //printf("input scroll value: %d %lld %f %f\n", x, elapsed, accel_factor, accel);
-    return static_cast<SInt32>(accel_factor * x / 120.0);
+    double pixels = accel * x / 5.0;
+    //printf("Input scroll: x:%d ms:%lld accel:%f pixels:%f\n",
+    //    x, elapsed, accel, pixels);
+    return static_cast<SInt32>(pixels);
 }
 
 double
@@ -1977,10 +1974,8 @@ OSXScreen::handleCGInputEvent(CGEventTapProxy proxy,
 			return event;
 			break;
 		case kCGEventScrollWheel:
-			screen->onMouseWheel(screen->mapScrollWheelToSynergy(
-								 CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis2)),
-								 screen->mapScrollWheelToSynergy(
-								 CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis1)));
+			screen->onMouseWheel(screen->mapScrollWheelToSynergy((SInt32) CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis2)),
+								 screen->mapScrollWheelToSynergy((SInt32) CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis1)));
 			break;
 		case kCGEventKeyDown:
 		case kCGEventKeyUp:

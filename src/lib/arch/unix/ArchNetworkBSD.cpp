@@ -504,7 +504,7 @@ ArchNetworkBSD::unblockPollSocket(ArchThread thread)
 		char dummy = 0;
 		int ignore;
 
-		ignore = write(unblockPipe[1], &dummy, 1);
+		ignore = (int) write(unblockPipe[1], &dummy, 1);
 	}
 }
 

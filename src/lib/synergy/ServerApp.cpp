@@ -121,8 +121,9 @@ ServerApp::help()
 #endif
 
 	char buffer[3000];
-	sprintf(
+	snprintf(
 		buffer,
+        3000,
 		"Usage: %s"
 		" [--address <address>]"
 		" [--config <pathname>]"
