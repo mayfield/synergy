@@ -34,7 +34,7 @@ class Toolchain:
 
 	# options used by all commands
 	globalOptions = 'v'
-	globalOptionsLong = ['no-prompts', 'verbose', 'skip-gui', 'skip-core']
+	globalOptionsLong = ['no-prompts', 'verbose', 'skip-core']
 
 	# list of valid commands as keys. the values are optarg strings, but most 
 	# are None for now (this is mainly for extensibility)
@@ -47,7 +47,7 @@ class Toolchain:
 		'update'    : ['', []],
 		'install'   : ['', []],
 		'doxygen'   : ['', []],
-		'dist'      : ['', ['vcredist-dir=', 'qt-dir=']],
+		'dist'      : ['', ['vcredist-dir=']],
 		'distftp'   : ['', ['host=', 'user=', 'pass=', 'dir=']],
 		'kill'      : ['', []],
 		'usage'     : ['', []],
@@ -209,11 +209,9 @@ class InternalCommands:
 	make_cmd = 'make'
 	xcodebuild_cmd = 'xcodebuild'
 	w32_make_cmd = 'mingw32-make'
-	w32_qt_version = '4.6.2'
 	defaultTarget = 'release'
 
 	cmake_dir = 'res'
-	gui_dir = 'src/gui'
 	doc_dir = 'doc'
 	extDir = 'ext'
 
@@ -221,7 +219,6 @@ class InternalCommands:
 	xcodeproj_filename = '%s.xcodeproj' % project
 	configDir = 'build'
 	configFilename = '%s/%s.cfg' % (configDir, this_cmd)
-	qtpro_filename = 'gui.pro'
 	doxygen_filename = 'doxygen.cfg'
 
 	cmake_url = 'http://www.cmake.org/cmake/resources/software.html'
@@ -237,9 +234,6 @@ class InternalCommands:
 	
 	# by default, compile the core
 	enableMakeCore = True
-	
-	# by default, compile the gui
-	enableMakeGui = True
 	
 	# by default, unknown
 	macSdk = None
@@ -280,7 +274,7 @@ class InternalCommands:
 		return self.getGenerator().getBinDir(target)
 
 	def sln_filepath(self):
-		return '%s\%s' % (self.getBuildDir(), self.sln_filename)
+		return '%s\\%s' % (self.getBuildDir(), self.sln_filename)
 
 	def xcodeproj_filepath(self, target=''):
 		return '%s/%s' % (self.getBuildDir(target), self.xcodeproj_filename)
@@ -402,10 +396,6 @@ class InternalCommands:
 		if self.enableMakeCore:
 			self.configureCore(target, extraArgs)
 		
-		# allow user to skip gui compile
-		if self.enableMakeGui:
-			self.configureGui(target, extraArgs)
-		
 		self.setConfRun(target)
 
 	def configureCore(self, target="", extraArgs=""):
@@ -431,7 +421,7 @@ class InternalCommands:
 			cmake_args += ' -DCMAKE_BUILD_TYPE=' + target.capitalize()
 			
 		if sys.platform == "darwin":
-			macSdkMatch = re.match("(\d+)\.(\d+)", self.macSdk)
+			macSdkMatch = re.match(r"(\d+)\.(\d+)", self.macSdk)
 			if not macSdkMatch:
 				raise Exception("unknown osx version: " + self.macSdk)
 
@@ -468,74 +458,6 @@ class InternalCommands:
 		if err != 0:
 			raise Exception('CMake encountered error: ' + str(err))
 
-	def configureGui(self, target="", extraArgs=""):
-			
-		# make sure we have qmake
-		self.persist_qmake()
-		
-		qmake_cmd_string = self.qmake_cmd + " " + self.qtpro_filename + " -r"
-
-		if sys.platform == "darwin":
-		
-			# create makefiles on mac (not xcode).
-			qmake_cmd_string += " -spec macx-g++"
-			
-			(major, minor) = self.getMacVersion()
-			if major == 10 and minor <= 4:
-				# 10.4: universal (intel and power pc)
-				raise Exception("FUCK")
-				qmake_cmd_string += ' CONFIG+="ppc i386"'
-			
-			libs = (
-				"-framework ApplicationServices "
-				"-framework Security "
-				"-framework cocoa")
-			
-			if major == 10 and minor >= 6:
-				libs += " -framework ServiceManagement"
-			
-			qmake_cmd_string += " \"MACX_LIBS=%s\" " % libs
-			
-			sdkDir = self.getMacSdkDir()
-			shortForm = "macosx" + self.macSdk
-			version = str(major) + "." + str(minor)
-			
-			qmake_cmd_string += " QMAKE_MACOSX_DEPLOYMENT_TARGET=" + version
-
-			(qMajor, qMinor, qRev) = self.getQmakeVersion()
-			if qMajor <= 4:
-				# 4.6: qmake takes full sdk dir.
-				qmake_cmd_string += " QMAKE_MAC_SDK=" + sdkDir
-			else:
-				# 5.2: now we need to use the .path setting.
-				qmake_cmd_string += " QMAKE_MAC_SDK=" + shortForm
-				qmake_cmd_string += " QMAKE_MAC_SDK." + shortForm + ".path=" + sdkDir
-
-		qmake_cmd_string += " QMAKE_VERSION_STAGE=" + self.getVersionStage() 
-		qmake_cmd_string += " QMAKE_VERSION_REVISION=" + self.getGitRevision() 
-		print("QMake command: " + qmake_cmd_string)
-		
-		# run qmake from the gui dir
-		self.try_chdir(self.gui_dir)
-		err = os.system(qmake_cmd_string)
-		self.restore_chdir()
-		
-		if err != 0:
-			raise Exception('QMake encountered error: ' + str(err))
-
-	def getQmakeVersion(self):
-		version = commands.getoutput("qmake --version")
-		result = re.search('(\d+)\.(\d+)\.(\d)', version)
-		
-		if not result:
-			raise Exception("Could not get qmake version.")
- 
-		major = int(result.group(1))
-		minor = int(result.group(2))
-		rev = int(result.group(3))
-		
-		return (major, minor, rev)
-
 	def getMacSdkDir(self):
 		sdkName = "macosx" + self.macSdk
 
@@ -563,7 +485,7 @@ class InternalCommands:
 
 		file = open('.project', 'r+')
 		content = file.read()
-		pattern = re.compile('\s+<linkedResources>.+</linkedResources>', re.S)
+		pattern = re.compile(r'\s+<linkedResources>.+</linkedResources>', re.S)
 		content = pattern.sub('', content)
 		file.seek(0)
 		file.write(content)
@@ -584,47 +506,6 @@ class InternalCommands:
 			raise Exception('Cannot continue without CMake.')
 		else:  
 			return self.cmake_cmd
-
-	def persist_qt(self):
-		self.persist_qmake()
-
-	def persist_qmake(self):
-		# cannot use subprocess on < python 2.4
-		if sys.version_info < (2, 4):
-			return
-		
-		try:
-			p = subprocess.Popen(
-				[self.qmake_cmd, '--version'], 
-				stdout=subprocess.PIPE, 
-				stderr=subprocess.PIPE)
-		except:
-			print('Error: Could not find qmake.')
-			if sys.platform == 'win32': # windows devs usually need hints ;)
-				print((
-					'Suggestions:\n'
-					'1. Ensure that qmake.exe exists in your system path.\n'
-					'2. Try to download Qt (check our dev FAQ for links):\n'
-					'  qt-sdk-win-opensource-2010.02.exe'))
-			raise Exception('Cannot continue without qmake.')
-		
-		stdout, stderr = p.communicate()
-		if p.returncode != 0:
-			raise Exception('Could not test for cmake: %s' % stderr)
-		else:
-			m = re.search('.*Using Qt version (\d+\.\d+\.\d+).*', stdout)
-			if m:
-				if sys.platform == 'win32':
-					ver = m.group(1)
-					if ver != self.w32_qt_version: # TODO: test properly
-						print((
-							'Warning: Not using supported Qt version %s'
-							' (your version is %s).'
-							) % (self.w32_qt_version, ver))
-				else:
-					pass # any version should be ok for other platforms
-			else:
-				raise Exception('Could not find qmake version.')
 
 	def ensureConfHasRun(self, target, skipConfig):
 		if self.hasConfRun(target):
@@ -648,10 +529,6 @@ class InternalCommands:
 		if self.enableMakeCore:
 			self.makeCore(targets)
 
-		# allow user to skip gui compile
-		if self.enableMakeGui:
-			self.makeGui(targets)
-	
 	def loadConfig(self):
 		config = self.getConfig()
 		
@@ -681,103 +558,6 @@ class InternalCommands:
 				else:
 					raise Exception('Build command not supported with generator: ' + generator)
 	
-	def makeGui(self, targets, args=""):
-		for target in targets:
-		
-			if sys.platform == 'win32':
-
-				gui_make_cmd = self.w32_make_cmd + ' ' + target + args
-				print('Make GUI command: ' + gui_make_cmd)
-
-				self.try_chdir(self.gui_dir)
-				err = os.system(gui_make_cmd)
-				self.restore_chdir()
-				
-				if err != 0:
-					raise Exception(gui_make_cmd + ' failed with error: ' + str(err))
-
-			elif sys.platform in ['linux', 'sunos5', 'freebsd7', 'darwin']:
-
-				gui_make_cmd = self.make_cmd + " -w" + args
-				print('Make GUI command: ' + gui_make_cmd)
-
-				# start with a clean app bundle
-				targetDir = self.getGenerator().getBinDir(target)
-				bundleTargetDir = targetDir + '/Synergy.app'
-				if os.path.exists(bundleTargetDir):
-					shutil.rmtree(bundleTargetDir)
-
-				binDir = self.getGenerator().binDir
-				bundleTempDir = binDir + '/Synergy.app'
-				if os.path.exists(bundleTempDir):
-					shutil.rmtree(bundleTempDir)
-
-				self.try_chdir(self.gui_dir)
-				err = os.system(gui_make_cmd)
-				self.restore_chdir()
-
-				if err != 0:
-					raise Exception(gui_make_cmd + ' failed with error: ' + str(err))
-
-				if sys.platform == 'darwin' and not "clean" in args:
-					self.macPostGuiMake(target)
-
-					self.fixQtFrameworksLayout(target)
-			else:
-				raise Exception('Unsupported platform: ' + sys.platform)
-
-	def macPostGuiMake(self, target):
-		bundle = 'Synergy.app'
-		binDir = self.getGenerator().binDir
-		targetDir = self.getGenerator().getBinDir(target)
-		bundleTempDir = binDir + '/' + bundle
-		bundleTargetDir = targetDir + '/' + bundle
-
-		if os.path.exists(bundleTempDir):
-			shutil.move(bundleTempDir, bundleTargetDir)
-
-		if self.enableMakeCore:
-			# copy core binaries into the bundle, since the gui
-			# now looks for the binaries in the current app dir.
-			
-			bundleBinDir = bundleTargetDir + "/Contents/MacOS/"
-			shutil.copy(targetDir + "/synergyc", bundleBinDir)
-			shutil.copy(targetDir + "/synergys", bundleBinDir)
-			shutil.copy(targetDir + "/syntool", bundleBinDir)
-
-		self.loadConfig()
-		if not self.macIdentity:
-			raise Exception("run config with --mac-identity")
-
-		if self.enableMakeGui:
-			# use qt to copy libs to bundle so no dependencies are needed. do not create a
-			# dmg at this point, since we need to sign it first, and then create our own
-			# after signing (so that qt does not affect the signed app bundle).
-			bin = "macdeployqt Synergy.app -verbose=2"
-			self.try_chdir(targetDir)
-			err = os.system(bin)
-			self.restore_chdir()
-			print(bundleTargetDir)
-			if err != 0:
-				raise Exception(bin + " failed with error: " + str(err))
-
-			(qMajor, qMinor, qRev) = self.getQmakeVersion()
-			if qMajor <= 4:
-				frameworkRootDir = "/Library/Frameworks"
-			else:
-				# TODO: auto-detect, qt can now be installed anywhere.
-				frameworkRootDir = "/Developer/Qt5.2.1/5.2.1/clang_64/lib"
-
-			target = bundleTargetDir + "/Contents/Frameworks"
-
-			# copy the missing Info.plist files for the frameworks.
-			for root, dirs, files in os.walk(target):
-				for dir in dirs:
-					if dir.startswith("Qt"):
-						shutil.copy(
-							frameworkRootDir + "/" + dir + "/Contents/Info.plist",
-							target + "/" + dir + "/Resources/")
-
 	def symlink(self, source, target):
 		if not os.path.exists(target):
 			os.symlink(source, target)
@@ -785,40 +565,6 @@ class InternalCommands:
 	def move(self, source, target):
 		if os.path.exists(source):
 			shutil.move(source, target)
-
-	def fixQtFrameworksLayout(self, target):
-		# reorganize Qt frameworks layout on Mac 10.9.5 or later
-		# http://goo.gl/BFnQ8l
-		# QtCore example:
-		#   QtCore.framework/
-		#     QtCore    -> Versions/Current/QtCore
-		#     Resources -> Versions/Current/Resources
-		#     Versions/
-		#       Current -> 5
-		#       5/
-		#         QtCore
-		#         Resources/
-		#           Info.plist
-		targetDir = self.getGenerator().getBinDir(target)
-
-		target = targetDir + "/Synergy.app/Contents/Frameworks"
-		(major, minor) = self.getMacVersion()
-		if major == 10:
-			if minor >= 9:
-				for root, dirs, files in os.walk(target):
-					for dir in dirs:
-						if dir.startswith("Qt"):
-							self.try_chdir(target + "/" + dir +"/Versions")
-							self.symlink("5", "Current")
-							self.move("../Resources", "5")
-							self.restore_chdir()
-
-							self.try_chdir(target + "/" + dir)
-							dot = dir.find('.')
-							frameworkName = dir[:dot]
-							self.symlink("Versions/Current/" + frameworkName, frameworkName)
-							self.symlink("Versions/Current/Resources", "Resources")
-							self.restore_chdir()
 
 	def signmac(self):
 		self.loadConfig()
@@ -884,10 +630,6 @@ class InternalCommands:
 		# allow user to skip core clean
 		if self.enableMakeCore:
 			self.cleanCore(targets)
-
-		# allow user to skip qui clean
-		if self.enableMakeGui:
-			self.cleanGui(targets)
 	
 	def cleanCore(self, targets):
 		generator = self.getGeneratorFromConfig().cmakeName
@@ -922,9 +664,6 @@ class InternalCommands:
 				if err != 0:
 					raise Exception('Clean failed: ' + str(err))
 	
-	def cleanGui(self, targets):
-		self.makeGui(targets, " clean")
-		
 	def open(self):
 		generator = self.getGeneratorFromConfig().cmakeName
 		if generator.startswith('Visual Studio'):
@@ -996,7 +735,7 @@ class InternalCommands:
 			if p.returncode != 0:
 				raise Exception('Could not get revision - svn info failed with code: ' + str(p.returncode))
 		
-		m = re.search('.*Revision: (\d+).*', stdout)
+		m = re.search(r'.*Revision: (\d+).*', stdout)
 		if not m:
 			raise Exception('Could not find revision number in svn info output.')
 		
@@ -1009,8 +748,6 @@ class InternalCommands:
 			raise Exception('Not implemented for platform: ' + sys.platform)
 		
 	def doxygen(self):
-		self.enableMakeGui = False
-		
 		# The conf generates doc/doxygen.cfg from cmake/doxygen.cfg.in
 		self.configure(self.defaultTarget, '-DCONF_DOXYGEN:BOOL=TRUE')
 
@@ -1019,7 +756,7 @@ class InternalCommands:
 		if err != 0:
 			raise Exception('doxygen failed with error code: ' + str(err))
 				
-	def dist(self, type, vcRedistDir, qtDir):
+	def dist(self, type, vcRedistDir):
 
 		# Package is supported by default.
 		package_unsupported = False
@@ -1048,7 +785,6 @@ class InternalCommands:
 			
 		elif type == 'win':
 			if sys.platform == 'win32':
-				#self.distNsis(vcRedistDir, qtDir)
 				self.distWix()
 			else:
 				package_unsupported = True
@@ -1303,15 +1039,11 @@ class InternalCommands:
 		
 		os.rename(old, new)
 		
-	def distNsis(self, vcRedistDir, qtDir):
+	def distNsis(self, vcRedistDir):
 		
 		if vcRedistDir == '':
 			raise Exception(
 				'VC++ redist dir path not specified (--vcredist-dir).')
-
-		if qtDir == '':
-			raise Exception(
-				'QT SDK dir path not specified (--qt-dir).')
 
 		generator = self.getGeneratorFromConfig().cmakeName
 
@@ -1322,16 +1054,15 @@ class InternalCommands:
 			arch = 'x64'
 			installDirVar = '$PROGRAMFILES64'      
 		
-		templateFile = open(self.cmake_dir + '\Installer.nsi.in')
+		templateFile = open(self.cmake_dir + '\\Installer.nsi.in')
 		template = templateFile.read()
 
 		template = template.replace('${in:version}', self.getVersionNumber())
 		template = template.replace('${in:arch}', arch)
 		template = template.replace('${in:vcRedistDir}', vcRedistDir)
-		template = template.replace('${in:qtDir}', qtDir)
 		template = template.replace('${in:installDirVar}', installDirVar)
 
-		nsiPath = self.getGenerator().buildDir + '\Installer.nsi'
+		nsiPath = self.getGenerator().buildDir + '\\Installer.nsi'
 		nsiFile = open(nsiPath, 'w')
 		nsiFile.write(template)
 		nsiFile.close()
@@ -1346,13 +1077,13 @@ class InternalCommands:
 		cmakeFile = open('CMakeLists.txt')
 		cmake = cmakeFile.read()
 
-		majorRe = re.search('VERSION_MAJOR (\d+)', cmake)
+		majorRe = re.search(r'VERSION_MAJOR (\d+)', cmake)
 		major = majorRe.group(1)
 
-		minorRe = re.search('VERSION_MINOR (\d+)', cmake)
+		minorRe = re.search(r'VERSION_MINOR (\d+)', cmake)
 		minor = minorRe.group(1)
 
-		revRe = re.search('VERSION_REV (\d+)', cmake)
+		revRe = re.search(r'VERSION_REV (\d+)', cmake)
 		rev = revRe.group(1)
 
 		return "%s.%s.%s" % (major, minor, rev)
@@ -1361,7 +1092,7 @@ class InternalCommands:
 		cmakeFile = open('CMakeLists.txt')
 		cmake = cmakeFile.read()
 
-		stageRe = re.search('VERSION_STAGE (\w+)', cmake)
+		stageRe = re.search(r'VERSION_STAGE (\w+)', cmake)
 		return stageRe.group(1)
 
 	def getVersionForFilename(self):
@@ -1401,7 +1132,7 @@ class InternalCommands:
 		(platform, packageExt, libraryExt) = self.getDistributePlatformInfo(type)
 		ext = libraryExt
 
-		pattern = name + '\.' + ext
+		pattern = name + r'\.' + ext
 
 		for filename in os.listdir(dir):
 			if re.search(pattern, filename):
@@ -1814,7 +1545,7 @@ class InternalCommands:
 		if not self.macSdk:
 			raise Exception("Mac OS X SDK not set.")
 		
-		result = re.search('(\d+)\.(\d+)', self.macSdk)
+		result = re.search(r'(\d+)\.(\d+)', self.macSdk)
 		if not result:
 			print(versions)
 			raise Exception("Could not find Mac OS X version.")
@@ -1835,7 +1566,7 @@ class InternalCommands:
 				# 10.5: 32-bit intel
 				arch = "i386"
 			else:
-				# 10.7: 64-bit intel (gui only)
+				# 10.7: 64-bit intel
 				arch = "x86_64"
 		else:
 			raise Exception("Mac OS major version unknown: " +
@@ -1856,13 +1587,6 @@ class InternalCommands:
 		if os.path.exists('lib'):
 			shutil.rmtree('lib')
 		
-		if os.path.exists('src/gui/tmp'):
-			shutil.rmtree('src/gui/tmp')
-		
-		# qt 4.3 generates ui_ files.
-		for filename in glob.glob("src/gui/ui_*"):
-			os.remove(filename)
-
 # the command handler should be called only from hm.py (i.e. directly 
 # from the command prompt). the purpose of this class is so that we 
 # don't need to do argument handling all over the place in the internal
@@ -1871,7 +1595,6 @@ class CommandHandler:
 	ic = InternalCommands()
 	build_targets = []
 	vcRedistDir = ''
-	qtDir = ''
 	
 	def __init__(self, argv, opts, args, verbose):
 		
@@ -1885,8 +1608,6 @@ class CommandHandler:
 				self.ic.no_prompts = True
 			elif o in ('-g', '--generator'):
 				self.ic.generator_id = a
-			elif o == '--skip-gui':
-				self.ic.enableMakeGui = False
 			elif o == '--skip-core':
 				self.ic.enableMakeCore = False
 			elif o in ('-d', '--debug'):
@@ -1895,8 +1616,6 @@ class CommandHandler:
 				self.build_targets += ['release',]
 			elif o == '--vcredist-dir':
 				self.vcRedistDir = a
-			elif o == '--qt-dir':
-				self.qtDir = a
 			elif o == '--mac-sdk':
 				self.ic.macSdk = a
 			elif o == '--mac-identity':
@@ -1932,7 +1651,7 @@ class CommandHandler:
 		if len(self.args) > 0:
 			type = self.args[0]    
 
-		self.ic.dist(type, self.vcRedistDir, self.qtDir)
+		self.ic.dist(type, self.vcRedistDir)
 
 	def distftp(self):
 		type = None
