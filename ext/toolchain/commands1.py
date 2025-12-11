@@ -205,7 +205,6 @@ class InternalCommands:
 
 	this_cmd = 'hm'
 	cmake_cmd = 'cmake'
-	qmake_cmd = 'qmake'
 	make_cmd = 'make'
 	xcodebuild_cmd = 'xcodebuild'
 	w32_make_cmd = 'mingw32-make'
@@ -547,7 +546,7 @@ class InternalCommands:
 
 		if generator.find('Unix Makefiles') != -1:
 			for target in targets:
-				self.runBuildCommand(self.make_cmd, target)
+				self.runBuildCommand(self.make_cmd + ' -j 32 ', target)
 		else:
 			for target in targets:
 				if generator.startswith('Visual Studio'):
